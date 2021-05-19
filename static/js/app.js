@@ -1,106 +1,130 @@
-//Build function to read json file using d3
-function buildMetaData(sample) {
-    d3.json("samples.json").then((data) => {
-      var metadata = data.metadata;
-      console.log(metadata);
+/*
+ * Generate Dropdown Menu Items: ID numbers.
+ */
+function init() {
+  var selector = d3.select('#selDataset');
 
-    // Filter the data
-    var buildingArray = metadata.filter(sampleObj => sampleObj.id == sample);
-    var result = buildingArray[0];
-    // Use d3 to select the required panel
-    var panelData = d3.select("#sample-metadata");
-
-    // Clear the existing data in the html
-    panelData.html("");
-
-    // Use `Object.entries` to add each key and value pair to the panelData
-    Object.entries(result).forEach(([key, value]) => {
-      panelData.append("h6").text(`${key.toUpperCase()}: ${value}`);
+  d3.json('samples.json').then((data) => {
+    var sampleNames = data.names;
+    sampleNames.forEach((sample) => {
+      selector.append('option').text(sample).property('value', sample);
     });
+    var initialSample = sampleNames[0];
+    buildMetadata(initialSample);
+    buildCharts(initialSample);
   });
 }
 
+init();
+/*
+! NOTE: optionChanged is called when a change takes place in this tag in the HTML. 
+! this.value = newSample = ID number
+*/
+function optionChanged(newSample) {
+  buildMetadata(newSample);
+  buildCharts(newSample);
+}
+/*
+ * Print information to the "Demographic Info" once a user selects an ID number.
+ */
+function buildMetadata(sample) {
+  d3.json('samples.json').then((data) => {
+    var metadata = data.metadata;
+    var resultArray = metadata.filter((sampleObj) => sampleObj.id == sample);
+    var pairs = Object.entries(resultArray[0]);
+    var PANEL = d3.select('#sample-metadata');
+
+    PANEL.html('');
+    var results = pairs.forEach(function (pair) {
+      PANEL.append('h6').text(pair[0] + ': ' + pair[1]);
+    });
+  });
+}
+/*
+ * Build the charts once a user selects an ID number.
+ */
 function buildCharts(sample) {
-    d3.json("samples.json").then((data) => {
-      var sampleData = data.samples;
-      var buildingArray = sampleData.filter(sampleObj => sampleObj.id == sample);
-      var result = buildingArray[0];
-  
-      var otu_ids = result.otu_ids;
-      var otu_labels = result.otu_labels;
-      var sample_values = result.sample_values;
+  d3.json('samples.json').then(function ({ samples, metadata }) {
+    var data = samples.filter((obj) => obj.id == sample)[0];
+    console.log(data);
+    // data for bar chart
+    var otuIDS = data.otu_ids.map((row) => `OTU ID: ${row}`);
+    var sampleValues = data.sample_values.slice(0, 10);
+    var sampleLabels = data.otu_labels.map((label) =>
+      label.replace(/\;/g, ', ')
+    );
+    // data for bubble chart
+    var otuID = data.otu_ids;
+    var sampleValue = data.sample_values;
+    var sampleLabel = data.otu_labels.map((label) =>
+      label.replace(/\;/g, ', ')
+    );
+    // data for gauge
+    var metData = metadata.filter((obj) => obj.id == sample)[0];
+    var washFreq = metData.wfreq;
+    // data for bar chart
+    var data1 = [
+      {
+        x: sampleValues,
+        y: otuIDS,
+        type: 'bar',
+        orientation: 'h',
+        text: sampleLabels,
+        hoverinfo: 'text',
+      },
+    ];
 
-      // Build a Bubble Chart
-    var bubbleChart = {
-        title: "Bacteria Cultures Per Sample",
-        hovermode: "closest",
-        xaxis: { title: "OTU ID" },
-      };
-      var bubbleData = [
-        {
-          x: otu_ids,
-          y: sample_values,
-          text: otu_labels,
-          mode: "markers",
-          marker: {
-            size: sample_values,
-            color: otu_ids,
-            colorscale: "Earth"
-          }
-        }
-      ];
-  
-      Plotly.newPlot("bubble", bubbleData, bubbleChart);
-      
-      //Create a horizontal bar chart
-      var yticks = otu_ids.slice(0, 10).map(otuID => `OTU ${otuID}`).reverse();
-      var barData = [
-        {
-          y: yticks,
-          x: sample_values.slice(0, 10).reverse(),
-          text: otu_labels.slice(0, 10).reverse(),
-          type: "bar",
-          orientation: "h",
-        }
-      ];
-  
-      var chartLayout = {
-        title: "Top 10 Bacteria Cultures Found",
-        margin: { t: 30, l: 150 }
-      };
-  
-      Plotly.newPlot("bar", barData, chartLayout);
-    });
-  };
+    // data for bubble chart
+    var data2 = [
+      {
+        x: otuID,
+        y: sampleValue,
+        mode: 'markers',
+        text: sampleLabel,
+        marker: {
+          size: sampleValue,
+          color: otuID,
+        },
+      },
+    ];
+    // data for gauge chart
+    var data3 = [
+      {
+        // domain: washFreq,
+        value: washFreq,
+        title: {
+          text:'Scrubs per Week',
+        },
+        type: 'indicator',
+        mode: 'gauge+number',
+        gauge: {
+          axis: { range: [null, 9] },
+        },
+      },
+    ];
+    // layout for bar chart
+    var layout1 = {
+      margin: {
+        t: 40,
+        l: 150,
+      },
+      title: {
+        text: 'Top 10 Bacterial Species (OTUs)',
+      },
+    };
+    // layout for bubble chart
+    var layout2 = {
+      xaxis: { title: 'OTU ID' },
+    };
+    // layout for gauge chart
+    var layout3 = {
+      width: 380,
+      height: 150,
+      margin: { t: 0, b: 0 },
+    };
 
-  function init() {
-    // Grab a reference to the dropdown select element
-    var selectDropdown = d3.select("#selDataset");
-  
-    // Populate the select options by using the list of sample names
-    d3.json("samples.json").then((data) => {
-      var name = data.names;
-  
-      name.forEach((sample) => {
-        selectDropdown
-          .append("option")
-          .text(sample)
-          .property("value", sample);
-      })
-  
-      // Use the sample data from the list to build the plots
-      var sampleData = name[0];
-      buildCharts(sampleData);
-      buildMetaData(sampleData);
-    });
-  };
-  
-  function optionChanged(newSample) {
-    // Fetch new data each time a new sample is selected
-    buildCharts(newSample);
-    buildMetaData(newSample);
-  };
-
-  
-// Initialize the dashboard
-  init()
+    Plotly.newPlot('bar', data1, layout1);
+    Plotly.newPlot('bubble', data2, layout2);
+    Plotly.newPlot('gauge', data3, layout3);
+  });
+}
